@@ -23,10 +23,13 @@
       timers = [],
       greenT = 0,
       greenDue = 0,
+      thirdAmberT = 0,
+      stagedRtAnchors = null,
       startedAt = 0,
       doneAt = 0;
       
   var L = {};
+  var rtBoundaryTolerance = 30;
   var sec = function(ms) { return (ms / 1000).toFixed(3); };
 
   /* --- Tree --- */
@@ -43,8 +46,36 @@
     
     function row(id, c, n, s) {
       var r = document.createElement('div');
-      r.className = 'row';
-      for (var i = 0; i < n; i++) r.appendChild(bulb(id, c, s));
+      r.className = 'row' + (id === 'a3' || id === 'g' ? ' rt-row' : '');
+      var lamps = document.createElement('div');
+      lamps.className = 'lamps';
+      for (var i = 0; i < n; i++) lamps.appendChild(bulb(id, c, s));
+      r.appendChild(lamps);
+      if (id === 'a3' || id === 'g') {
+        var anchor = document.createElement('label');
+        anchor.className = 'rt-anchor';
+        var label = document.createElement('span');
+        label.textContent = id === 'a3' ? '3rd Light RT (s)' : 'Green Light RT (s)';
+        anchor.appendChild(label);
+
+        var input = document.createElement('input');
+        input.id = id === 'a3' ? 'rt-a3' : 'rt-green';
+        input.type = 'number';
+        input.min = '0';
+        input.max = '1';
+        input.step = '0.001';
+        input.placeholder = '0.000';
+        input.required = true;
+        input.setAttribute('aria-label', label.textContent);
+        input.addEventListener('input', function() {
+          if (this.value !== '' && (!Number.isFinite(this.valueAsNumber) ||
+              this.valueAsNumber < 0 || this.valueAsNumber > 1)) {
+            msg('Angka RT harus diantara 0.000 hingga 1.000!.', true, '#e5383b');
+          }
+        }); 
+        anchor.appendChild(input);
+        r.appendChild(anchor);
+      }
       t.appendChild(r);
     }
     
@@ -141,7 +172,11 @@
   /* --- Run Logic --- */
   function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
   function clearT() { timers.forEach(clearTimeout); timers = []; }
-  function msg(t) { $('#msg').textContent = t; }
+  function msg(t, isError) {
+    var message = $('#msg');
+    message.textContent = t;
+    message.classList.toggle('error', !!isError);
+  }
   
   function readout(t, c) {
     var r = $('#read');
@@ -155,12 +190,43 @@
     p.classList.toggle('go', !!go);
   }
 
+  function readRtAnchors() {
+    var third = $('#rt-a3').value.trim(),
+        fourth = $('#rt-green').value.trim();
+    if (!third || !fourth) {
+      return { error: 'Harus masukan angka RT antara 0.000 hingga 1.000' };
+    }
+
+    var thirdMs = Number(third) * 1000,
+        fourthMs = Number(fourth) * 1000;
+    if (!Number.isFinite(thirdMs) || !Number.isFinite(fourthMs) ||
+        thirdMs < 0 || thirdMs > 1000 || fourthMs < 0 || fourthMs > 1000) {
+      return { error: 'Angka RT harus diantara 0.000 hingga 1.000' };
+    }
+    if (fourthMs <= thirdMs) {
+      return { error: 'RT Lampu Hijau harus lebih tinggi dari RT Lampu Ke-3!' };
+    }
+    return { third: thirdMs, fourth: fourthMs };
+  }
+
   function start() {
     if (!driver) {
-      msg('Enter a driver name and press Load driver first.');
+      msg('Masukin Jenis Mobil dan Nama Joki dulu ya...');
       $('#name').focus();
       return;
     }
+
+    var anchors = readRtAnchors();
+    if (anchors.error) {
+      msg(anchors.error, true);
+      if (!$('#rt-a3').value.trim()) $('#rt-a3').focus();
+      else if (!$('#rt-green').value.trim()) $('#rt-green').focus();
+      else if (Number($('#rt-a3').value) < 0 || Number($('#rt-a3').value) > 1) $('#rt-a3').focus();
+      else if (Number($('#rt-green').value) < 0 || Number($('#rt-green').value) > 1) $('#rt-green').focus();
+      else $('#rt-green').focus();
+      return;
+    }
+    stagedRtAnchors = anchors;
     
     clearT();
     revStop();
@@ -168,6 +234,7 @@
     
     state = 'staged';
     greenT = 0;
+    thirdAmberT = 0;
     startedAt = performance.now();
     
     lit('pre', true);
@@ -197,6 +264,7 @@
     });
     
     at(d + iv * 2, function() {
+      thirdAmberT = performance.now();
       lit('a3', true);
       tone(700, .14);
     });
@@ -218,8 +286,10 @@
     });
   }
 
-  function press() {
-    var now = performance.now();
+  function press(eventTime) {
+    var currentTime = performance.now(),
+        now = typeof eventTime === 'number' && Math.abs(eventTime - currentTime) < 60000 ?
+          eventTime : currentTime;
     
     if (state === 'idle' || state === 'done') {
       if (now - doneAt > 400) start();
@@ -234,7 +304,12 @@
     doneAt = now;
     padText('Stage lagi');
     
-    if (!greenT) {
+    var anchors = stagedRtAnchors,
+        calibrationEnd = greenT || greenDue,
+        inCalibrationWindow = now >= thirdAmberT - rtBoundaryTolerance &&
+          thirdAmberT > 0 && now <= calibrationEnd + rtBoundaryTolerance;
+
+    if (!inCalibrationWindow && now < calibrationEnd) {
       var redRt = Math.round(now - greenDue);
       lit('r', true);
       tone(170, .5, 'sawtooth', .09);
@@ -242,26 +317,37 @@
       msg('Jump start! -' + sec(Math.abs(redRt)) + ' s ');
       log({ red: true, rt: redRt });
     } else {
-      var rt = Math.round(now - greenT);
+      var rt;
+      if (inCalibrationWindow) {
+        var progress = Math.max(0, Math.min(1, (now - thirdAmberT) / (calibrationEnd - thirdAmberT)));
+        if (Math.abs(now - thirdAmberT) <= rtBoundaryTolerance) progress = 0;
+        else if (Math.abs(now - calibrationEnd) <= rtBoundaryTolerance) progress = 1;
+        rt = Math.round(anchors.third + progress * (anchors.fourth - anchors.third));
+      } else {
+        rt = Math.round(anchors.fourth + now - calibrationEnd);
+      }
       var v = runs.filter(function(r) { return !r.red && r.iv === iv; });
       var pb = v.length ? Math.min.apply(null, v.map(function(r) { return r.rt; })) : 1e9;
       
       readout(sec(rt), 'ok');
       msg(
         rt < pb ? 'Anjay rekor baru!' : 
-        rt <= 50 ? 'Sangar!' : 
+        rt <= 0 ? 'Sangar!' : 
         rt <= 100 ? 'Wih!' : 
-        rt <= 150 ? 'Boleh-boleh.' : 
+        rt <= 200 ? 'Boleh-boleh.' : 
         'Kelamaan.'
       );
       
       log({ rt: rt });
     }
+
   }
 
   function log(r) {
     r.iv = iv;
     r.at = Date.now();
+    r.carModel = driver.carModel;
+    r.driverName = driver.name;
     runs.push(r);
     
     if (runs.length > 300) runs = runs.slice(-300);
@@ -344,17 +430,26 @@
     h.innerHTML = '';
     
     if (!selectedEntries.length) {
-      h.innerHTML = '<tr><td colspan="4" class="empty">' + (runs.length ? 'No runs for this amber interval.' : 'No runs yet.') + '</td></tr>';
+      h.innerHTML = '<tr><td colspan="6" class="empty">' + (runs.length ? 'No runs for this amber interval.' : 'No runs yet.') + '</td></tr>';
       return;
     }
     
     selectedEntries.slice().reverse().forEach(function(entry) {
       var r = entry.run;
       var tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + (entry.index + 1) + '</td><td>' + (r.iv / 1000).toFixed(2) + ' s</td><td></td>';
-      
-      tr.lastChild.textContent = r.red ? 'JS!' + (typeof r.rt === 'number' ? ' (' + sec(r.rt) + ' s)' : '') : sec(r.rt) + ' s' + (r.rt === pb ? ' (best)' : '');
-      tr.lastChild.style.color = r.red ? 'var(--red)' : '';
+      var values = [
+        entry.index + 1,
+        r.carModel || '-',
+        r.driverName || '-',
+        (r.iv / 1000).toFixed(2) + ' s',
+        r.red ? 'JS!' + (typeof r.rt === 'number' ? ' (' + sec(r.rt) + ' s)' : '') : sec(r.rt) + ' s' + (r.rt === pb ? ' (best)' : '')
+      ];
+      values.forEach(function(value, index) {
+        var td = document.createElement('td');
+        td.textContent = value;
+        if (index === 4 && r.red) td.style.color = 'var(--red)';
+        tr.appendChild(td);
+      });
       
       var idx = entry.index,
           td = document.createElement('td'),
@@ -383,7 +478,7 @@
   async function save() {
     if (!driver) return;
     
-    var doc = { name: driver.name, runs: runs, updated: Date.now() };
+    var doc = { name: driver.name, carModel: driver.carModel, runs: runs, updated: Date.now() };
     ls.set('rl:d:' + driver.slug, JSON.stringify(doc));
     
     if (!db) {
@@ -410,12 +505,23 @@
     }
   }
   
-  async function loadDriver(name) {
+  async function loadDriver(name, carModel) {
     name = name.trim();
+    carModel = carModel.trim();
+    if (carModel.length < 3 || carModel.length > 20) {
+      msg('Jenis Mobil harus minimal 3 huruf.', true, '#e5383b');
+      $('#car');
+      return;
+    }
+    if (name.length < 3 || name.length > 20) {
+      msg('Nama Joki harus minimal 3 huruf.', true);
+      $('#name');
+      return;
+    }
     var s = slug(name);
     
     if (!s) {
-      msg('Belum ada joki.');
+      msg('Belum ada joki.', true);
       return;
     }
     
@@ -442,10 +548,9 @@
       } catch (e) {}
     }
     
-    driver = { name: name, slug: s };
+    driver = { name: name, carModel: carModel, slug: s };
     runs = data && Array.isArray(data.runs) ? data.runs : [];
-    
-    ls.set('rl:driver', name);
+
     render();
     readout('0.000s', 'idle');
     padText('Stage');
@@ -502,21 +607,25 @@
   };
   muteUI();
   
-  $('#load').onclick = function() { loadDriver($('#name').value); };
+  $('#load').onclick = function() { loadDriver($('#name').value, $('#car').value); };
   
   $('#name').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') loadDriver(this.value);
+    if (e.key === 'Enter') loadDriver(this.value, $('#car').value);
+  });
+
+  $('#car').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') loadDriver($('#name').value, this.value);
   });
   
   $('#pad').addEventListener('pointerdown', function(e) {
     e.preventDefault();
-    press();
+    press(e.timeStamp);
   });
   
   document.addEventListener('keydown', function(e) {
     if ((e.code === 'Space' || e.code === 'Enter') && e.target.tagName !== 'INPUT') {
       e.preventDefault();
-      if (!e.repeat) press();
+      if (!e.repeat) press(e.timeStamp);
     }
   });
   
@@ -525,6 +634,10 @@
   });
 
   /* --- Start Up --- */
+  Array.prototype.forEach.call(document.querySelectorAll('input'), function(input) {
+    input.value = '';
+  });
+
   (async function() {
     for (var i = 0; i < 12 && !window.claude; i++) {
       await new Promise(function(r) { setTimeout(r, 250); });

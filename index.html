@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>TPG Dragway | Reaction Time Trainer</title>
   <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Barlow:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/x-icon" href="./asset/favicon.png">
+  <link rel="icon" type="image/x-icon" href="/asset/favicon.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -13,20 +13,27 @@
   <!-- <div class="flag"></div> -->
   <div class="wrap">
     <div class="logo">
-      <img src="./asset/TPG Merah.png" alt="" width="150px" height="auto">
+      <img src="/asset/TPG Merah.png" alt="" width="150px" height="auto">
       <div class="title"><h1>Dragway</h1></div>
     </div>
     <p class="lede">Tempat untuk para joki latihan START biar RT bagus dan tidak JS!</p>
 
     <div class="bar">
-      <input id="name" maxlength="30" placeholder="Nama Joki" autocomplete="off" aria-label="Driver name">
+      <div class="driver-fields">
+        <label class="profile-field" for="car">
+          <!-- <span>Jenis Mobil</span> -->
+          <input id="car" minlength="3" maxlength="20" required placeholder="Model Mobil" autocomplete="off">
+        </label>
+        <label class="profile-field" for="name">
+          <!-- <span>Nama Joki</span> -->
+          <input id="name" minlength="3" maxlength="20" required placeholder="Nama Joki" autocomplete="off">
+        </label>
+      </div>
       <button class="masuk" id="load">Masuk</button>
       <span id="save">Belum ada nama joki yang masuk!</span>
     </div>
     
     <div class="stage">
-      <p class="read idle" id="read" aria-live="polite">0.000s</p>
-      <p class="msg" id="msg">Masukin nama joki, lalu tekan tombol STAGE.</p>
       <div class="ctl">
         <span>
           <b class="amber">Amber interval</b>
@@ -34,7 +41,9 @@
         </span>
         <button id="mute" aria-pressed="false">Sound on</button>
       </div>
-      <div class="tree" id="tree" aria-hidden="true"></div>
+      <p class="read idle" id="read" aria-live="polite">0.000s</p>
+      <p class="msg" id="msg">Masukin nama joki, lalu tekan tombol STAGE.</p>
+      <div class="tree" id="tree"></div>
       <button class="pad" id="pad">Stage</button>
     </div>
     
@@ -71,6 +80,8 @@
         <thead>
           <tr>
             <th>Run</th>
+            <th>Jenis Mobil</th>
+            <th>Nama Joki</th>
             <th>Tree</th>
             <th>Reaction</th>
             <th class="clear-cell"><button id="clear" disabled>Clear all runs</button></th>
@@ -78,7 +89,7 @@
         </thead>
         <tbody id="hist">
           <tr>
-            <td colspan="4" class="empty">No runs yet.</td>
+            <td colspan="6" class="empty">No runs yet.</td>
           </tr>
         </tbody>
       </table>

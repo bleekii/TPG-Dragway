@@ -42,7 +42,7 @@ body {
 }
 
 .logo {
-    width: 500px;
+    width: min(500px, 100%);
     height: auto;
     margin-bottom: 10px;
     /* background-color: red; */
@@ -62,7 +62,7 @@ h1 {
 
 .lede {
   margin: 0 0 20px;
-  color: var(--dim);
+  color: var(--cream);
   max-width: 60ch;
 }
 
@@ -72,6 +72,22 @@ h1 {
   gap: 10px;
   align-items: center;
   margin-bottom: 22px;
+  /* background: white; */
+}
+
+.driver-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  flex: 1 1 420px;
+  gap: 12px;
+  max-width: 620px;
+}
+
+.profile-field {
+  display: grid;
+  gap: 4px;
+  color: var(--dim);
+  font-size: 14px;
 }
 
 input {
@@ -124,20 +140,75 @@ button:hover {
 }
 
 .tree {
-  width: 210px;
-  background: #0a0b0d;
-  border: 2px solid var(--line);
-  border-radius: 16px;
-  padding: 20px 0;
+  --lamp-box-width: 190px;
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: min(460px, 100%);
+  max-width: 100%;
+  padding: 20px 16px;
   gap: 12px;
 }
 
+.tree::before {
+  position: absolute;
+  z-index: -1;
+  content: "";
+  inset: 0 auto 0 50%;
+  transform: translateX(-50%);
+  width: min(var(--lamp-box-width), 100%);
+  background: #0a0b0d;
+  border: 2px solid var(--line);
+  border-radius: 16px;
+}
+
 .row {
+  position: relative;
   display: flex;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+}
+
+.row {
+  min-height: 36px;
+}
+
+.rt-row {
+  height: 36px;
+  flex: none;
+}
+
+.lamps {
+  display: flex;
+  justify-content: center;
   gap: 16px;
+}
+
+.rt-anchor {
+  position: absolute;
+  left: calc(50% + var(--lamp-box-width) / 2 + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: calc(50% - var(--lamp-box-width) / 2 - 8px);
+  color: var(--dim);
+  font-size: 13px;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.rt-anchor input {
+  width: 100%;
+  max-width: none;
+  flex: none;
+  padding: 5px 7px;
+  font-size: 14px;
 }
 
 .b {
@@ -182,6 +253,10 @@ button:hover {
   min-height: 1.5em;
   margin: 0;
   color: var(--dim);
+}
+
+.msg.error {
+  color: var(--red);
 }
 
 .pad {
@@ -376,7 +451,7 @@ th.clear-cell {
 
 .hist-wrap {
   max-height: 340px;
-  overflow-y: scroll;
+  overflow: auto;
   border: 1px solid var(--line);
   border-radius: 10px;
   scrollbar-color: var(--dim) var(--panel);
@@ -405,6 +480,31 @@ th.clear-cell {
 @media(max-width: 760px) {
   .stats {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media(max-width: 520px) {
+  .driver-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .tree {
+    --lamp-box-width: 150px;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  table {
+    min-width: 700px;
+  }
+
+  .rt-anchor {
+    font-size: 12px;
+  }
+
+  .rt-anchor input {
+    padding: 4px 5px;
+    font-size: 13px;
   }
 }
 
